@@ -3,12 +3,11 @@ import google.generativeai as genai
 from bs4 import BeautifulSoup
 from datetime import datetime
 import streamlit as st
-import requests  # API 호출용 라이브러리
-import time
-import json
+import urllib.parse # 주소 변환 도구
+import random
 
 def fetch_rss_feeds(feeds_list):
-    """RSS 피드 목록에서 뉴스 수집 (기존과 동일)"""
+    """RSS 피드 목록에서 뉴스 수집"""
     articles = []
     if not feeds_list: return articles
     
@@ -33,94 +32,56 @@ def fetch_rss_feeds(feeds_list):
             continue
     return articles
 
-# === 🍌 나노바나나 API 호출 함수 (여기가 핵심!) ===
+# === 🎨 [핵심] 무료 인포그래픽 생성 함수 (설정 불필요!) ===
 def generate_infographic(prompt):
-    """나노바나나 Pro API를 호출하여 이미지를 생성합니다."""
+    """
+    복잡한 API 키나 URL 설정 없이,
+    Pollinations AI를 통해 즉시 고퀄리티 이미지를 생성합니다.
+    """
     try:
-        # 1. Secrets에서 키 가져오기
-        api_key = st.secrets.get("NANOBANA_API_KEY", "")
-        if not api_key:
-            print("⚠️ NANOBANA_API_KEY가 없습니다.")
-            return None
-
-        # ==========================================================
-        # 🚨 [사용자 설정 필요] 나노바나나 API 문서에 맞춰 수정해주세요!
-        # ==========================================================
+        # 1. 프롬프트를 인터넷 주소용으로 이쁘게 포장
+        # 'infographic', 'vector art' 같은 스타일 단어를 강제로 추가해서 퀄리티를 높입니다.
+        enhanced_prompt = f"infographic, data visualization, flat design, high quality, {prompt}"
+        encoded_prompt = urllib.parse.quote(enhanced_prompt)
         
-        # (1) API 주소 (Endpoint)
-        # 예: "https://api.nanobana.com/v1/generate" 혹은 제공받은 URL
-        api_url = "https://api.nanobana.com/v1/generate" 
-
-        # (2) 보낼 데이터 (Payload)
-        # 나노바나나가 요구하는 형식(JSON)을 맞춰야 합니다.
-        payload = {
-            "prompt": f"Infographic style, high quality, {prompt}", # 프롬프트
-            "model": "pro-v1",        # Pro 모델 이름 (문서 확인 필요)
-            "width": 1024,
-            "height": 1024,
-            "negative_prompt": "text, watermark, blurry, low quality"
-        }
-
-        # (3) 헤더 (인증 정보)
-        headers = {
-            "Authorization": f"Bearer {api_key}",
-            "Content-Type": "application/json"
-        }
-        # ==========================================================
-
-        print(f"🎨 나노바나나에게 요청 중... 프롬프트: {prompt[:30]}...")
+        # 2. 랜덤 숫자를 넣어 매번 새로운 그림이 나오게 함
+        seed = random.randint(1, 99999)
         
-        # 2. 실제 요청 보내기 (POST)
-        response = requests.post(api_url, json=payload, headers=headers)
+        # 3. 마법의 주소 생성 (여기로 접속하면 그림이 뚝딱!)
+        image_url = f"https://pollinations.ai/p/{encoded_prompt}?width=1024&height=600&seed={seed}&model=flux"
         
-        # 3. 응답 처리
-        if response.status_code == 200:
-            result = response.json()
-            # 🚨 중요: 응답에서 이미지 주소가 어디에 들어있는지 확인해야 합니다.
-            # 보통 result['url'], result['data'][0]['url'], result['image'] 중 하나입니다.
-            image_url = result.get('url') # 예시 (맞게 수정하세요)
-            
-            # 만약 url이 리스트 안에 있다면:
-            # image_url = result['data'][0]['url']
-            
-            return image_url
-        else:
-            print(f"❌ API 오류 ({response.status_code}): {response.text}")
-            return None
+        return image_url
 
     except Exception as e:
-        print(f"❌ 이미지 생성 중 예외 발생: {e}")
-        return None
-
+        # 만약 실패하면 예비용 이미지를 보여줌
+        return "https://picsum.photos/800/400"
 
 def analyze_news_with_gemini(articles):
-    """Gemini 모델 순차 시도 + 인포그래픽 프롬프트"""
+    """Gemini로 분석하고 + 무료 AI로 그리기"""
     if not articles: return None, None
 
     try:
+        # secrets.toml에 넣은 구글 키를 가져옵니다
         api_key = st.secrets["GOOGLE_API_KEY"]
         genai.configure(api_key=api_key)
     except:
-        return "API 키 설정 오류. Secrets를 확인하세요.", None
+        return "API 키 설정 오류. secrets.toml을 확인해주세요.", None
 
-    # 1. 확실한 모델 목록
-    candidate_models = [
-        'gemini-1.5-flash',
-        'gemini-1.5-pro',
-        'gemini-pro'
-    ]
+    # 사용할 모델 후보 (최신 순)
+    candidate_models = ['gemini-1.5-flash', 'gemini-1.5-pro', 'gemini-pro']
 
     news_text = ""
     for idx, art in enumerate(articles):
         news_text += f"{idx+1}. [{art.get('source')}] {art.get('title')}\n"
 
+    # AI에게 내리는 지령 (프롬프트)
     prompt = f"""
-    너는 IT 뉴스 에디터이자 인포그래픽 기획자야.
-    1. 뉴스 브리핑: '📢 오늘의 핵심 흐름' (3줄 요약) 및 뉴스 정리 (마크다운)
-    2. 인포그래픽 프롬프트: 이 뉴스 내용을 한장의 인포그래픽으로 표현할 수 있는 **영어 묘사(English Prompt)**. 
-       (예: futuristic chart, data visualization, glowing nodes, cyber style)
+    너는 IT 전문 뉴스 앵커야.
+    1. **뉴스 브리핑**: '📢 오늘의 핵심 흐름' (3줄 요약) 및 뉴스 정리 (마크다운)
+    2. **그림 요청**: 이 뉴스 내용을 한 장의 인포그래픽으로 표현할 수 있는 **영어 묘사(English Prompt)** 한 줄.
+       (예: futuristic network map with glowing blue nodes, cyber security shield, 3d render)
 
-    **반환 형식 (반드시 지켜줘):**
+    **반환 형식 (이대로만 대답해):**
     (뉴스 브리핑 내용)
     ---구분선---
     (영어 이미지 프롬프트)
@@ -129,8 +90,7 @@ def analyze_news_with_gemini(articles):
     {news_text}
     """
 
-    # 2. 모델 돌려막기
-    last_error = ""
+    # 모델이 안 되면 다음 모델로 넘어가며 시도
     for model_name in candidate_models:
         try:
             model = genai.GenerativeModel(model_name)
@@ -143,13 +103,12 @@ def analyze_news_with_gemini(articles):
             
             if len(parts) > 1:
                 image_prompt = parts[1].strip()
-                # 나노바나나 호출!
+                # ✨ 위에서 만든 무료 이미지 함수 호출!
                 image_url = generate_infographic(image_prompt)
             
             return briefing_text, image_url
             
         except Exception as e:
-            last_error = str(e)
             continue
 
-    return f"모든 모델 연결 실패.\n마지막 오류: {last_error}", None
+    return "분석 실패: 구글 API 키를 확인해주세요.", None
