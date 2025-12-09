@@ -7,14 +7,14 @@ from news_logic import fetch_rss_feeds, analyze_news_with_gemini
 # --- 설정 ---
 st.set_page_config(page_title="My AI Newsroom", layout="wide", page_icon="📰")
 
-# GitHub 리포지토리 정보 (secrets에서 가져옴)
+# GitHub 리포지토리 정보 로드
 try:
-    REPO_NAME = st.secrets["REPO_NAME"] # 예: "username/repo-name"
+    REPO_NAME = st.secrets["REPO_NAME"]
 except:
     st.error("Secrets에 REPO_NAME을 설정해주세요.")
     st.stop()
 
-# --- 데이터 초기화 (GitHub에서 로드) ---
+# --- 데이터 초기화 ---
 if 'feeds' not in st.session_state:
     data = load_data_from_github(REPO_NAME, "data/feeds.json")
     st.session_state.feeds = data if data else [{"name": "Google News IT", "url": "https://news.google.com/rss/search?q=IT&hl=ko&gl=KR&ceid=KR%3Ako"}]
@@ -27,19 +27,11 @@ if 'stats' not in st.session_state:
     data = load_data_from_github(REPO_NAME, "data/stats.json")
     st.session_state.stats = data if data else {"visits": 0, "last_updated": ""}
 
-def load_feeds():
-    """세션에 저장된 피드 목록을 반환합니다."""
-    return st.session_state.get('feeds', [])
-
-# --- 방문자 카운트 (새 세션일 때만 증가 로직 - 간소화 버전) ---
-# 주의: Streamlit은 리로드마다 실행되므로 실제 배포 시엔 Session ID 체크 등 정교한 로직 필요
-# 여기서는 대시보드에서 '통계 업데이트' 버튼을 누를 때 저장하는 방식으로 구현하여 API 호출 절약
-
 # --- UI 구성 ---
 st.sidebar.title("📰 나만의 뉴스룸")
 menu = st.sidebar.radio("메뉴 이동", ["오늘의 브리핑", "대시보드 (관리자)"])
 
-# 1. 메인 화면: 오늘의 브리핑
+# 1. 메인 화면: 오늘의 브리핑 (수정됨: 이미지 표시 기능 추가!)
 if menu == "오늘의 브리핑":
     st.title("☕ 오늘의 IT 뉴스 브리핑")
     
@@ -48,13 +40,19 @@ if menu == "오늘의 브리핑":
     # 오늘자 리포트가 있는지 확인
     if today_str in st.session_state.news_report:
         report_data = st.session_state.news_report[today_str]
-        st.markdown(f"**업데이트 시간:** {report_data['updated_at']}")
+        
+        st.caption(f"Update: {report_data['updated_at']} | 기사 {report_data.get('article_count', 0)}개 분석")
         st.divider()
+        
+        # 🖼️ [NEW] 저장된 인포그래픽 이미지가 있으면 보여주기
+        if report_data.get('image_url'):
+            st.image(report_data['image_url'], caption="Today's AI Infographic", use_container_width=True)
+            st.divider()
+
         st.markdown(report_data['content'])
     else:
-        st.info("아직 오늘의 뉴스 브리핑이 생성되지 않았습니다. 대시보드에서 분석을 실행해주세요.")
+        st.info("아직 오늘의 뉴스 브리핑이 생성되지 않았습니다. 관리자 대시보드에서 분석을 실행해주세요.")
         
-    # 방문자 수 살짝 보여주기
     st.sidebar.divider()
     st.sidebar.caption(f"Total Visits: {st.session_state.stats.get('visits', 0)}")
 
@@ -71,7 +69,6 @@ elif menu == "대시보드 (관리자)":
         current_visits = st.session_state.stats.get('visits', 0)
         st.metric("총 방문 횟수", current_visits)
         
-        # 간단한 카운트 증가 테스트 버튼 (DB 쓰기 테스트용)
         if st.button("방문자 수 +1 (DB 테스트)"):
             st.session_state.stats['visits'] = current_visits + 1
             st.session_state.stats['last_updated'] = str(datetime.now())
@@ -82,13 +79,10 @@ elif menu == "대시보드 (관리자)":
     # 탭 2: RSS 관리
     with tab2:
         st.subheader("등록된 RSS 피드")
-        
-        # 리스트 출력
         if st.session_state.feeds:
             df_feeds = pd.DataFrame(st.session_state.feeds)
             st.dataframe(df_feeds, use_container_width=True)
             
-            # 삭제 기능
             feed_to_remove = st.selectbox("삭제할 피드 선택", [f['name'] for f in st.session_state.feeds])
             if st.button("선택한 피드 삭제"):
                 st.session_state.feeds = [f for f in st.session_state.feeds if f['name'] != feed_to_remove]
@@ -97,7 +91,6 @@ elif menu == "대시보드 (관리자)":
                 st.rerun()
         
         st.divider()
-        st.subheader("새 피드 추가")
         with st.form("add_feed_form"):
             new_name = st.text_input("언론사/블로그 이름")
             new_url = st.text_input("RSS URL")
@@ -110,36 +103,53 @@ elif menu == "대시보드 (관리자)":
                 st.success("추가되었습니다!")
                 st.rerun()
 
-    # 탭 3: AI 분석 실행 (인포그래픽 생성 포함)
+    # 탭 3: AI 분석 실행 (수정됨: 이미지 URL 저장 로직 추가!)
     with tab3:
-        st.subheader("🤖 AI 뉴스 분석 및 인포그래픽")
-        start_analysis_btn = st.button("🚀 분석 및 이미지 생성 시작하기")
-
-        if start_analysis_btn:
-            # 1. 뉴스 수집
-            with st.spinner('📰 최신 뉴스를 수집하고 있습니다...'):
-                feeds = load_feeds()
-                articles = fetch_rss_feeds(feeds)
+        st.subheader("뉴스 수집 및 분석")
+        
+        if st.button("🚀 분석 및 이미지 생성 시작하기", disabled=not st.session_state.feeds):
+            status_text = st.empty()
+            progress_bar = st.progress(0)
             
-            if not articles:
-                st.error("수집된 뉴스가 없습니다. RSS 피드를 확인해주세요.")
-            else:
-                st.success(f"✅ {len(articles)}개의 뉴스 기사를 수집했습니다.")
+            try:
+                # 1. 뉴스 수집
+                status_text.text("RSS 피드 수집 중...")
+                articles = fetch_rss_feeds(st.session_state.feeds)
+                progress_bar.progress(30)
                 
-                # 2. AI 분석 및 이미지 생성
-                with st.spinner('🧠 Gemini가 분석하고 나노바나나가 그리는 중... (시간이 좀 걸립니다)'):
+                if not articles:
+                    st.error("수집된 뉴스가 없습니다.")
+                else:
+                    # 2. AI 분석
+                    status_text.text("Gemini와 Nanobana가 열심히 작업 중입니다...")
                     briefing_text, image_url = analyze_news_with_gemini(articles)
-
-                if image_url:
-                    # 3. 인포그래픽 이미지 표시
-                    st.markdown("### 📊 오늘의 인포그래픽")
-                    st.image(image_url, caption="AI가 생성한 뉴스 인포그래픽", use_column_width=True)
-                    st.divider()
-
-                if briefing_text and not briefing_text.startswith("분석 중 오류"):
-                    # 4. 뉴스 요약문 표시
-                    st.markdown(briefing_text)
-                    st.balloons()
-                elif briefing_text:
-                    st.error(briefing_text)
-
+                    progress_bar.progress(70)
+                    
+                    if briefing_text and not briefing_text.startswith("모든 모델"):
+                        # 3. 결과 저장 (이미지 URL 포함!)
+                        today_str = datetime.now().strftime('%Y-%m-%d')
+                        st.session_state.news_report[today_str] = {
+                            "updated_at": str(datetime.now()),
+                            "content": briefing_text,
+                            "image_url": image_url,  # 👈 여기가 핵심! 이미지를 저장합니다.
+                            "article_count": len(articles)
+                        }
+                        
+                        status_text.text("GitHub에 결과 저장 중...")
+                        if save_data_to_github(REPO_NAME, "data/news_data.json", st.session_state.news_report, f"Update News {today_str}"):
+                            progress_bar.progress(100)
+                            status_text.empty()
+                            st.success("✅ 분석 완료! '오늘의 브리핑' 메뉴에서 확인하세요.")
+                            st.balloons()
+                            
+                            # 미리보기
+                            if image_url:
+                                st.image(image_url, caption="생성된 인포그래픽")
+                            st.markdown(briefing_text)
+                        else:
+                            st.error("저장 실패")
+                    else:
+                        st.error(f"분석 실패: {briefing_text}")
+                        
+            except Exception as e:
+                st.error(f"오류 발생: {e}")
