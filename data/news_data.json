@@ -1,8 +1,8 @@
 {
     "2025-12-09": {
-        "updated_at": "2025-12-09 16:44:15.135720",
-        "content": "❌ 분석 실패: 404 models/gemini-pro is not found for API version v1beta, or is not supported for generateContent. Call ListModels to see the list of available models and their supported methods.",
-        "image_url": null,
+        "updated_at": "2025-12-09 16:45:51.051433",
+        "content": "📢 오늘의 핵심 흐름\n새해 공공 DR 사업과 금융권 IT 조직 개편이 국내 IT 산업 성장의 주요 동력으로 주목받고 있습니다.\n지역 인재 육성 및 IT 여성 기업인 지원을 통한 산업 다양성 강화 노력도 계속됩니다.\n한편, 북한 IT 인력 침투 지원 사건으로 국가 안보 차원의 사이버 보안 경각심이 더욱 커지고 있습니다.\n\n*   **IT 산업 성장 동력 확보**: 새해 공공 재난복구(DR) 사업이 IT 업계의 중요한 성장 기회가 될 것으로 기대됩니다. 또한, KB국민, 우리, 농협은행 등 주요 금융권의 IT 조직 개편 성공 사례들이 2026 금융 IT 혁신을 선도하며 산업 전반에 긍정적인 영향을 미치고 있습니다.\n*   **지역 및 인재 다양성 강화**: 울산에서 피어난 디자인 역량이 세계 시장으로 확장하며 지역 IT 경쟁력을 드높이고 있습니다. 한국IT여성기업인협회는 서울시여성가족재단과의 협력을 통해 여성 IT 기업인들의 성장과 사회적 기여를 적극적으로 지원할 예정입니다.\n*   **사이버 보안 위협 고조**: 미국 정부기관에 북한 IT 근로자가 침투하는 것을 도운 미국인이 징역 15개월을 선고받으며, 국가 안보를 위협하는 사이버 공격 및 배후 세력에 대한 강력한 경고와 함께 보안 강화의 중요성이 다시 한번 강조되었습니다.",
+        "image_url": "https://pollinations.ai/p/infographic%2C%20data%20visualization%2C%20flat%20design%2C%20high%20quality%2C%204k%2C%20detailed%2C%20professional%2C%20A%20vibrant%20infographic%20showing%20interconnected%20digital%20gears%20and%20upward%20trending%20graphs%20for%20IT%20industry%20growth%20and%20financial%20tech%20innovation%2C%20alongside%20diverse%20professionals%20collaborating%2C%20with%20a%20prominent%20digital%20security%20shield%20protecting%20against%20a%20subtle%2C%20shadowy%20cyber%20threat%2C%20on%20a%20clean%20white%20background.?width=1024&height=600&seed=50686&model=flux",
         "article_count": 5
     }
 }
