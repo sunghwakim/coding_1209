@@ -1,0 +1,7 @@
+streamlit
+feedparser
+google-generativeai>=0.4.0
+PyGithub
+beautifulsoup4
+pandas
+python-dateutil
