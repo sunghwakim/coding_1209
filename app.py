@@ -27,6 +27,10 @@ if 'stats' not in st.session_state:
     data = load_data_from_github(REPO_NAME, "data/stats.json")
     st.session_state.stats = data if data else {"visits": 0, "last_updated": ""}
 
+def load_feeds():
+    """세션에 저장된 피드 목록을 반환합니다."""
+    return st.session_state.get('feeds', [])
+
 # --- 방문자 카운트 (새 세션일 때만 증가 로직 - 간소화 버전) ---
 # 주의: Streamlit은 리로드마다 실행되므로 실제 배포 시엔 Session ID 체크 등 정교한 로직 필요
 # 여기서는 대시보드에서 '통계 업데이트' 버튼을 누를 때 저장하는 방식으로 구현하여 API 호출 절약
@@ -106,73 +110,36 @@ elif menu == "대시보드 (관리자)":
                 st.success("추가되었습니다!")
                 st.rerun()
 
-    # 탭 3: AI 분석 실행
+    # 탭 3: AI 분석 실행 (인포그래픽 생성 포함)
     with tab3:
-        st.subheader("뉴스 수집 및 분석")
-        st.write("등록된 RSS 피드에서 최신 뉴스를 가져와 Gemini로 분석합니다.")
-        
-        # RSS 피드 확인
-        if not st.session_state.feeds:
-            st.warning("⚠️ 등록된 RSS 피드가 없습니다. 'RSS 피드 관리' 탭에서 피드를 추가해주세요.")
-        else:
-            st.info(f"📡 현재 {len(st.session_state.feeds)}개의 RSS 피드가 등록되어 있습니다.")
-        
-        if st.button("🚀 분석 시작하기", disabled=not st.session_state.feeds):
-            status_text = st.empty()
-            progress_bar = st.progress(0)
-            error_occurred = False
+        st.subheader("🤖 AI 뉴스 분석 및 인포그래픽")
+        start_analysis_btn = st.button("🚀 분석 및 이미지 생성 시작하기")
+
+        if start_analysis_btn:
+            # 1. 뉴스 수집
+            with st.spinner('📰 최신 뉴스를 수집하고 있습니다...'):
+                feeds = load_feeds()
+                articles = fetch_rss_feeds(feeds)
             
-            try:
-                # 1. 뉴스 수집
-                status_text.text("RSS 피드 수집 중...")
-                articles = fetch_rss_feeds(st.session_state.feeds)
-                progress_bar.progress(30)
+            if not articles:
+                st.error("수집된 뉴스가 없습니다. RSS 피드를 확인해주세요.")
+            else:
+                st.success(f"✅ {len(articles)}개의 뉴스 기사를 수집했습니다.")
                 
-                if not articles:
-                    st.warning("⚠️ 수집된 뉴스가 없습니다. RSS 피드 URL을 확인해주세요.")
-                    progress_bar.empty()
-                    status_text.empty()
-                    error_occurred = True
-                else:
-                    st.success(f"✅ {len(articles)}개의 뉴스 기사를 수집했습니다.")
-                    
-                    # 2. AI 분석
-                    status_text.text("Gemini AI가 분석 중입니다 (시간이 조금 걸립니다)...")
-                    analysis_result = analyze_news_with_gemini(articles)
-                    progress_bar.progress(70)
-                    
-                    # AI 분석 결과 검증
-                    if analysis_result.startswith("오류") or analysis_result.startswith("AI 분석 중 오류"):
-                        st.error(f"❌ {analysis_result}")
-                        progress_bar.empty()
-                        status_text.empty()
-                        error_occurred = True
-                    else:
-                        # 3. 결과 저장
-                        today_str = datetime.now().strftime('%Y-%m-%d')
-                        st.session_state.news_report[today_str] = {
-                            "updated_at": str(datetime.now()),
-                            "content": analysis_result,
-                            "article_count": len(articles)
-                        }
-                        
-                        status_text.text("GitHub에 결과 저장 중...")
-                        if save_data_to_github(REPO_NAME, "data/news_data.json", st.session_state.news_report, f"Update News {today_str}"):
-                            progress_bar.progress(100)
-                            status_text.empty()
-                            st.success("✅ 분석 완료! '오늘의 브리핑' 메뉴에서 확인하세요.")
-                            st.balloons()
-                        else:
-                            st.error("❌ GitHub 저장에 실패했습니다. 다시 시도해주세요.")
-                            error_occurred = True
-                            
-            except Exception as e:
-                st.error(f"❌ 예상치 못한 오류가 발생했습니다: {str(e)}")
-                progress_bar.empty()
-                status_text.empty()
-                error_occurred = True
-            
-            if error_occurred:
-                progress_bar.empty()
-                status_text.empty()
+                # 2. AI 분석 및 이미지 생성
+                with st.spinner('🧠 Gemini가 분석하고 나노바나나가 그리는 중... (시간이 좀 걸립니다)'):
+                    briefing_text, image_url = analyze_news_with_gemini(articles)
+
+                if image_url:
+                    # 3. 인포그래픽 이미지 표시
+                    st.markdown("### 📊 오늘의 인포그래픽")
+                    st.image(image_url, caption="AI가 생성한 뉴스 인포그래픽", use_column_width=True)
+                    st.divider()
+
+                if briefing_text and not briefing_text.startswith("분석 중 오류"):
+                    # 4. 뉴스 요약문 표시
+                    st.markdown(briefing_text)
+                    st.balloons()
+                elif briefing_text:
+                    st.error(briefing_text)
 
